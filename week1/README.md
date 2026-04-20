@@ -1,5 +1,64 @@
 # 📄 Homework (mini-project)
 
+## RAG pipeline
+
+```mermaid
+flowchart TD
+    subgraph Ingestion
+        A[Download books.csv]
+        B[Read CSV rows]
+        C[Download PDFs to data/raw/pdfs]
+        A --> B --> C
+    end
+
+    subgraph Processing
+        D[Convert PDFs to Markdown]
+        E[Save markdown to data/processed]
+        F[Read markdown files]
+        G[Split into lines]
+        H[Remove empty lines]
+        I[Create document dictionaries]
+        D --> E --> F --> G --> H --> I
+    end
+
+    subgraph Chunking
+        J[Chunk with gitsource]
+        K[size = 100]
+        L[step = 50]
+        M[Create overlapping chunks]
+        J --> K
+        J --> L
+        K --> M
+        L --> M
+    end
+
+    subgraph Indexing
+        N[Join chunk lines into one string]
+        O[Build minsearch index]
+        N --> O
+    end
+
+    subgraph Retrieval_and_RAG
+        P[Search: python function definition]
+        Q[Top 5 results]
+        R[Build prompt with context]
+        S[Count tokens]
+        T[Structured vs unstructured comparison]
+        P --> Q --> R --> S --> T
+    end
+
+    C --> D
+    I --> J
+    M --> N
+    O --> P
+```
+
+### 📘 Pipeline Overview
+
+This project implements an end-to-end Retrieval-Augmented Generation (RAG) pipeline. It starts by downloading PDF books, converting them into markdown, and preprocessing the text into clean, non-empty lines. The content is then split into overlapping chunks using a sliding window approach (size=100, step=50).
+
+These chunks are indexed using minsearch for efficient keyword-based retrieval. Given a query (e.g., "python function definition"), the top relevant chunks are retrieved and used to construct a prompt. Finally, token usage is analyzed using tiktoken, and a comparison is performed between structured and unstructured outputs.
+
 ## Lesson 1
 
 In this homework we'll practice working with documents, extracting text, and preparing data for AI applications.
