@@ -2,11 +2,11 @@ import json
 import tiktoken
 import os
 
-#from openai import OpenAI
+from openai import OpenAI
 
 # Create OpenAI client
 # This automatically reads OPENAI_API_KEY from your environment
-#openai_client = OpenAI()
+openai_client = OpenAI()
 
 # System instructions for the assistant
 instructions = """
@@ -89,7 +89,7 @@ def search(index, question):
 
     return index.search(question, num_results=5)
 
-'''
+
 def llm(user_prompt, instructions, model="gpt-4o-mini"):
     """
     Send the prompt to the LLM and return:
@@ -113,7 +113,7 @@ def llm(user_prompt, instructions, model="gpt-4o-mini"):
     )
 
     # Extract text output
-    answer = response.output_text
+    answer = response.output[0].content[0].text
 
     # Extract token usage
     # Current OpenAI docs expose usage information on the response object
@@ -122,23 +122,11 @@ def llm(user_prompt, instructions, model="gpt-4o-mini"):
 
     return answer, input_tokens, output_tokens
 
-import google.generativeai as genai
-import os
-
-
-# Configure Gemini with API key from environment
-genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
-'''
-
-'''
-from openai import OpenAI
-
-openai_client = OpenAI()
 
 
 def llm_structured(user_prompt, instructions, model="gpt-4o-mini"):
     """
-    Call the LLM using structured outputs.
+    Call OpenAI using structured output.
 
     Returns:
     - parsed structured object
@@ -146,32 +134,28 @@ def llm_structured(user_prompt, instructions, model="gpt-4o-mini"):
     - output tokens
     """
 
-    # Build chat-style messages
     messages = [
         {"role": "system", "content": instructions},
         {"role": "user", "content": user_prompt}
     ]
 
-    # Use OpenAI structured output parsing
     response = openai_client.beta.chat.completions.parse(
         model=model,
         messages=messages,
         response_format=RAGResponse,
     )
 
-    # Parsed structured result as a Pydantic object
-    parsed_output = response.choices[0].message.parsed
+    structured_answer = response.choices[0].message.parsed
 
-    # Token usage from the API response
     input_tokens = response.usage.prompt_tokens
     output_tokens = response.usage.completion_tokens
 
-    return parsed_output, input_tokens, output_tokens
-'''
+    return structured_answer, input_tokens, output_tokens
 
+
+'''
 import json
 import tiktoken
-
 
 def llm_structured(user_prompt, instructions):
     """
@@ -222,7 +206,7 @@ def llm(user_prompt, instructions, model=None):
     output_tokens = len(enc.encode(answer))
 
     return answer, input_tokens, output_tokens
-
+'''
 
 def rag(index, query):
     """

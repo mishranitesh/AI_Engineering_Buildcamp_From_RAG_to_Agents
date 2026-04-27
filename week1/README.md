@@ -578,26 +578,22 @@ How many input tokens did we use for this one RAG query?
 
 ### Solution/Steps followed 
 
-Note - OpenAI is not free, so checking Gemini 
-
-### Step 1: Install Gemini SDK -
+### Step 1: Install openai -
 ```bash
-pip install tiktoken
+pip install openai
 ```
 
-### Step 3: Create the RAG script
+### Step 2: Create the RAG script
 - File: src/rag/rag_pipeline.py
 
-### Step 4: Create a runnable script
+### Step 3: Create a runnable script
 - File: scripts/run_rag.py
 
-### Step 5: Run the full pipeline
+### Step 4: Run the full pipeline
 ```bash
 python3 -m scripts.run_rag
 
 # Output
-(.venv) niteshmishra@Mac week1 % python3 -m scripts.run_rag
-
 Top retrieved chunks came from:
 
 1. think_python_2e.md
@@ -608,12 +604,44 @@ Top retrieved chunks came from:
 
 Answer:
 
-A function in Python is defined using the def keyword.
+A Python function is defined using the `def` keyword followed by the function name and parentheses containing any parameters. The body of the function contains the code to be executed. Here is a simple structure of a Python function definition:
+
+```python
+def function_name(parameters):
+    # Body of the function
+    # Perform operations
+    return result  # Optional return statement
+```
+
+### Example
+Here’s an example of a function that adds two numbers:
+
+```python
+def add_numbers(a, b):
+    return a + b
+```
+
+In this example:
+- `add_numbers` is the name of the function.
+- `a` and `b` are parameters.
+- The function returns the sum of `a` and `b`.
+
+To call the function, you would use:
+
+```python
+result = add_numbers(3, 5)
+print(result)  # Outputs: 8
+```
+
+### Key Points:
+- The function header defines the function name and parameters.
+- The function body contains the statements that execute when the function is called.
+- A function can return a value using the `return` statement, and it can be called with various arguments.
 
 Token usage:
 
-Input tokens: 7258
-Output tokens: 11
+Input tokens: 7269
+Output tokens: 238
 ```
 This should print:
 - top retrieved chunks
@@ -650,8 +678,8 @@ Modify the llm and rag functions from Question 5 to use structured outputs.
 
 How many MORE input tokens does the structured output version use compared to the unstructured version?
 - 24
-- 224
-- 424 <-- This is answer
+- 224 <-- This is answer
+- 424 
 - 624
 
 ### Solution/Steps followed 
@@ -681,20 +709,20 @@ python3 -m scripts.run_rag_structured
 # Output
 Structured answer:
 
-7259
+answer='In Python, a function is defined using the `def` keyword followed by the function name and parentheses containing any parameters. Here is a basic syntax structure for defining a function in Python:\n\n```python\ndef function_name(parameters):\n    # body of the function\n    # perform operations\n    return result\n```\n\n### Example:\nHere’s an example of a simple function that adds two numbers:\n\n```python\ndef add_numbers(a, b):\n    return a + b\n```\n\n### Key Components:\n- **Function Definition**: The line starting with `def` is where you define the function. \n- **Parameters**: `parameters` are optional and represent the inputs to the function.\n- **Function Body**: This is the indented block of code that performs the actions of the function.\n- **Return Statement**: The `return` statement is optional and specifies the value to be returned from the function once it completes its execution.\n\nYou can then call this function by passing arguments to it:\n\n```python\nresult = add_numbers(5, 3)\nprint(result)  # Output will be 8\n```' found_answer=True confidence=0.95 confidence_explanation="The context includes a detailed explanation of functions in Python, including how to define them, their components, and an example, which directly answers the user's request for information on python function definition." answer_type='explanation' followup_questions=['What are parameters in a Python function?', 'How do I call a Python function?', 'Can you explain the difference between return and print in functions?']
 
 Token usage:
 
-Input tokens: 7596
-Output tokens: 337
+Input tokens: 7470
+Output tokens: 348
 ```
 
 ### Calculate answer for Q6
 
 ```
 extra_tokens = structured_input_tokens - unstructured_input_tokens
-7596 - 7258 = 338
+7470 - 7269 = 201
 ```
 
-### Answer - closest option = 424
+### Answer - closest option = 224
 
