@@ -1,4 +1,4 @@
-# 📄 Homework (mini-project)
+# 📄 Homework (mini-project) for week1
 
 ## RAG pipeline
 
