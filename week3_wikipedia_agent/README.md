@@ -47,6 +47,36 @@ Built using:
 - OpenAI GPT-4.1-mini
 - Wikipedia APIs
 
+## Project flow diagram
+
+```mermaid
+flowchart TD
+    A[User Question] --> B[Wikipedia Agent]
+
+    B --> C{LLM Decision}
+
+    C -->|Need info| D[search_wikipedia tool]
+    D --> D1[Wikipedia Search API]
+    D1 --> D2[Search Results Titles]
+
+    D2 --> C
+
+    C -->|Fetch page content| E[get_page tool]
+    E --> E1[Wikipedia Page API raw]
+    E1 --> E2[Full Page Content]
+
+    E2 --> C
+
+    C --> F[LLM Synthesizes Answer]
+    F --> G[Final Response]
+```
+
+- The LLM (agent) decides when to:
+    - search Wikipedia
+    - fetch full page content
+- It can loop between tools multiple times
+- Finally it synthesizes everything into a single answer
+
 ### Project structure
 
 ```
