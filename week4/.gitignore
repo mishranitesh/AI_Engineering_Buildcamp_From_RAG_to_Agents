@@ -1,0 +1,47 @@
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Pytest cache
+.pytest_cache/
+.cache/
+
+# Coverage reports
+htmlcov/
+.coverage
+coverage.xml
+
+# Logs
+*.log
+
+# IDEs
+.vscode/
+.idea/
+
+# Mac system files
+.DS_Store
+
+# Environment variables (if you use any)
+.env
+
+# Jupyter Notebook checkpoints (if used)
+.ipynb_checkpoints/
+
+# Local test artifacts
+*.sqlite
+*.db
+
+# Temporary files
+tmp/
+temp/
+
+# Type checking
+.mypy_cache/
+.pytype/
