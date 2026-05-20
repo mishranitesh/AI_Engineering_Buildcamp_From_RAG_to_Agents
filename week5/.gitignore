@@ -1,0 +1,67 @@
+# =====================
+# Python
+# =====================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.so
+
+# virtual environments
+.venv/
+venv/
+env/
+
+# =====================
+# Logs / runtime
+# =====================
+*.log
+logs/
+
+# =====================
+# pytest / coverage
+# =====================
+.pytest_cache/
+.coverage
+htmlcov/
+
+# =====================
+# Jupyter
+# =====================
+.ipynb_checkpoints/
+
+# =====================
+# Environment variables
+# =====================
+.env
+.env.local
+.env.*.local
+
+# =====================
+# Logfire local config (IMPORTANT)
+# =====================
+.logfire/
+
+# =====================
+# OS files
+# =====================
+.DS_Store
+Thumbs.db
+
+# =====================
+# IDEs
+# =====================
+.vscode/
+.idea/
+
+# =====================
+# uv / Python tooling
+# =====================
+uv.lock
+
+# =====================
+# misc
+# =====================
+*.sqlite
+*.db
