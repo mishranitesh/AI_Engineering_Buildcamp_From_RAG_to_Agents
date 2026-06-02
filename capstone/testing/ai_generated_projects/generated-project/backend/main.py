@@ -26,6 +26,7 @@ class InventoryQuantityUpdate(BaseModel):
 # In-memory store and id lock/incrementor
 inventory_store: Dict[int, InventoryItem] = {}
 id_lock = Lock()
+store_lock = Lock()
 next_id = 1
 
 def _get_next_id() -> int:
@@ -39,24 +40,28 @@ def _get_next_id() -> int:
 def add_inventory_item(data: InventoryItemCreate) -> InventoryItem:
     item_id = _get_next_id()
     item = InventoryItem(id=item_id, **data.dict())
-    inventory_store[item_id] = item
+    with store_lock:
+        inventory_store[item_id] = item
     return item
 
 def get_all_inventory_items() -> List[InventoryItem]:
-    return list(inventory_store.values())
+    with store_lock:
+        return list(inventory_store.values())
 
 def update_inventory_item_quantity(item_id: int, quantity: int) -> InventoryItem:
-    if item_id not in inventory_store:
-        raise HTTPException(status_code=404, detail="Item not found")
-    item = inventory_store[item_id]
-    updated_item = InventoryItem(**item.dict(), quantity=quantity)
-    inventory_store[item_id] = updated_item
-    return updated_item
+    with store_lock:
+        if item_id not in inventory_store:
+            raise HTTPException(status_code=404, detail="Item not found")
+        item = inventory_store[item_id]
+        updated_item = item.copy(update={'quantity': quantity})
+        inventory_store[item_id] = updated_item
+        return updated_item
 
 def delete_inventory_item(item_id: int):
-    if item_id not in inventory_store:
-        raise HTTPException(status_code=404, detail="Item not found")
-    del inventory_store[item_id]
+    with store_lock:
+        if item_id not in inventory_store:
+            raise HTTPException(status_code=404, detail="Item not found")
+        del inventory_store[item_id]
 
 # API Routes
 @app.post("/items/", response_model=InventoryItem, status_code=status.HTTP_201_CREATED)
