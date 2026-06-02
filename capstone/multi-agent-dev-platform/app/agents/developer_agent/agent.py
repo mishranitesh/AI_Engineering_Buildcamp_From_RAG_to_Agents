@@ -17,6 +17,7 @@ Output each file using EXACTLY this format — no extra headers, no directory st
 ### main.py
 ```python
 <code here>
+```
 Use the appropriate language identifier (python, java, typescript, etc.) based on the requirement.
 """
 

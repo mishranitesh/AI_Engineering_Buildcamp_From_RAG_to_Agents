@@ -16,7 +16,7 @@ Output each test file using EXACTLY this format — no extra headers, no numberi
 ### test_app.py
 ```python
 <tests here>
-
+```
 Use the appropriate language identifier based on the code provided.
 """
 
