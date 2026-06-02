@@ -1,12 +1,16 @@
 import pytest
 from fastapi.testclient import TestClient
-from main import app
+from main import app, inventory_store, next_id
 
 client = TestClient(app)
 
+@pytest.fixture(autouse=True)
+def clear_inventory():
+    global next_id
+    inventory_store.clear()
+    next_id = 1
+
 def test_create_then_get_items():
-    # Clear inventory - not thread-safe in real scenario, but acceptable here
-    global_ids = []
     # Add an item
     resp = client.post("/items/", json={
         "name": "Widget",
@@ -15,7 +19,6 @@ def test_create_then_get_items():
     })
     assert resp.status_code == 201
     item = resp.json()
-    global_ids.append(item["id"])
     assert item["name"] == "Widget"
     assert item["quantity"] == 10
     assert item["price"] == 2.5
