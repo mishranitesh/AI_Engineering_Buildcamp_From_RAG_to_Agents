@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, APIRouter
+from fastapi import FastAPI, HTTPException, Depends, APIRouter, Response
 from sqlalchemy import Column, Integer, String, Float, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from pydantic import BaseModel, conint, constr, confloat
@@ -137,7 +137,7 @@ def delete_inventory_item(
     service: InventoryService = Depends(get_inventory_service)
 ):
     service.delete_item(item_id)
-    return None
+    return Response(status_code=204)
 
 # ========== APP SETUP ==========
 
