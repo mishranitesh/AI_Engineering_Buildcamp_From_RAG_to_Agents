@@ -1,71 +1,41 @@
-import pytest
 from fastapi.testclient import TestClient
-from main import app, inventory_store, next_id
+from main import app
+import pytest
 
 client = TestClient(app)
 
-@pytest.fixture(autouse=True)
-def clear_inventory():
-    global next_id
-    inventory_store.clear()
-    next_id = 1
+def create_sample_item():
+    response = client.post(
+        "/api/inventory",
+        json={"name": "TestItem", "quantity": 30, "price": 7.5}
+    )
+    assert response.status_code == 201, response.text
+    return response.json()["id"]
 
-def test_create_then_get_items():
-    # Add an item
-    resp = client.post("/items/", json={
-        "name": "Widget",
-        "quantity": 10,
-        "price": 2.5
-    })
-    assert resp.status_code == 201
-    item = resp.json()
-    assert item["name"] == "Widget"
-    assert item["quantity"] == 10
-    assert item["price"] == 2.5
-    assert "id" in item
+def test_patch_with_no_body_returns_422():
+    item_id = create_sample_item()
+    response = client.patch(f"/api/inventory/{item_id}", data="")  # No JSON
+    assert response.status_code == 422
+    assert "detail" in response.json()
 
-    # Get all items
-    resp = client.get("/items/")
-    assert resp.status_code == 200
-    items = resp.json()
-    assert any(i["id"] == item["id"] for i in items)
+def test_patch_with_missing_quantity_field():
+    item_id = create_sample_item()
+    response = client.patch(f"/api/inventory/{item_id}", json={})
+    assert response.status_code == 422
+    data = response.json()
+    assert "detail" in data
+    assert any(
+        err["loc"][-1] == "quantity" and err["type"].startswith("value_error.missing") for err in data["detail"]
+    )
 
-def test_create_invalid_item():
-    resp = client.post("/items/", json={"name": "", "quantity": -1, "price": -5})
-    assert resp.status_code == 422
-
-def test_update_item_quantity():
-    # Create item
-    resp = client.post("/items/", json={"name": "Phone", "quantity": 5, "price": 499})
-    assert resp.status_code == 201
-    item_id = resp.json()["id"]
-
-    # Update quantity (success)
-    resp = client.put(f"/items/{item_id}/quantity/", json={"quantity": 12})
-    assert resp.status_code == 200
-    new_data = resp.json()
-    assert new_data["id"] == item_id
-    assert new_data["quantity"] == 12
-
-    # Update with invalid quantity
-    resp = client.put(f"/items/{item_id}/quantity/", json={"quantity": -3})
-    assert resp.status_code == 422
-
-    # Update non-existing
-    resp = client.put(f"/items/999999/quantity/", json={"quantity": 1})
-    assert resp.status_code == 404
-
-def test_delete_item():
-    # Create item
-    resp = client.post("/items/", json={"name": "Book", "quantity": 2, "price": 12.99})
-    assert resp.status_code == 201
-    item_id = resp.json()["id"]
-
-    # Delete it
-    resp = client.delete(f"/items/{item_id}/")
-    assert resp.status_code == 200
-    assert resp.json()["message"].startswith("Item deleted")
-
-    # Delete again (should 404)
-    resp = client.delete(f"/items/{item_id}/")
-    assert resp.status_code == 404
+def test_patch_with_extra_field():
+    item_id = create_sample_item()
+    response = client.patch(
+        f"/api/inventory/{item_id}", json={"quantity": 20, "unexpected": "oops"}
+    )
+    assert response.status_code == 422
+    data = response.json()
+    assert "detail" in data
+    assert any(
+        err["type"] == "value_error.extra" for err in data["detail"]
+    )
