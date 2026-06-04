@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field, NonNegativeInt, condecimal
 from typing import List
 from sqlalchemy import Column, Integer, String, Numeric, create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
+from decimal import Decimal
 
 DATABASE_URL = "sqlite:///./inventory.db"
 
@@ -25,7 +26,7 @@ class InventoryRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create(self, name: str, quantity: int, price: float) -> InventoryItem:
+    def create(self, name: str, quantity: int, price: Decimal) -> InventoryItem:
         item = InventoryItem(name=name, quantity=quantity, price=price)
         self.db.add(item)
         self.db.commit()
@@ -82,7 +83,7 @@ class InventoryService:
         return self.repo.create(
             name=data.name.strip(),
             quantity=data.quantity,
-            price=float(data.price),
+            price=data.price,  # Pass as Decimal to preserve precision
         )
 
     def list_items(self) -> List[InventoryItem]:
