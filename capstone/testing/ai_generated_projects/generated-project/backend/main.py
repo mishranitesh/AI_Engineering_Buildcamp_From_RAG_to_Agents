@@ -1,84 +1,119 @@
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Path
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, validator
-from typing import Dict, List
-from threading import Lock
+from pydantic import BaseModel, constr, PositiveInt, NonNegativeInt, condecimal
+from typing import List
+from uuid import uuid4, UUID
+from sqlalchemy import create_engine, Column, String, Integer, Numeric
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session, scoped_session
 
-app = FastAPI(title="Inventory API")
+# SQLAlchemy setup (using SQLite for demonstration, replace with real DB in prod)
+DATABASE_URL = "sqlite:///./inventory.db"
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
+Base = declarative_base()
+
+# --- Models ---
+
+class InventoryItemDB(Base):
+    __tablename__ = "inventory_items"
+    id = Column(String(36), primary_key=True, index=True)
+    name = Column(String(128), nullable=False)
+    quantity = Column(Integer, nullable=False)
+    price = Column(Numeric(10, 2), nullable=False)
+
+# --- Pydantic Schemas ---
 
 class InventoryItemCreate(BaseModel):
-    name: str = Field(..., min_length=1)
-    quantity: int = Field(..., ge=0)
-    price: float = Field(..., ge=0.0)
+    name: constr(strip_whitespace=True, min_length=1, max_length=128)
+    quantity: NonNegativeInt
+    price: condecimal(gt=0, max_digits=10, decimal_places=2)
 
-    @validator("name")
-    def name_cannot_be_blank(cls, v):
-        if not v.strip():
-            raise ValueError("Name must not be empty")
-        return v.strip()
+class InventoryItemResponse(BaseModel):
+    id: str
+    name: str
+    quantity: int
+    price: float
 
-class InventoryItem(InventoryItemCreate):
-    id: int
+    class Config:
+        orm_mode = True
 
-class InventoryQuantityUpdate(BaseModel):
-    quantity: int = Field(..., ge=0)
+class InventoryItemQuantityUpdate(BaseModel):
+    quantity: NonNegativeInt
 
-# In-memory store and id lock/incrementor
-inventory_store: Dict[int, InventoryItem] = {}
-id_lock = Lock()
-store_lock = Lock()
-next_id = 1
+# --- Service Layer ---
 
-def _get_next_id() -> int:
-    global next_id
-    with id_lock:
-        curr = next_id
-        next_id += 1
-    return curr
+class InventoryService:
+    @staticmethod
+    def create_item(db: Session, data: InventoryItemCreate) -> InventoryItemDB:
+        item = InventoryItemDB(
+            id=str(uuid4()),
+            name=data.name,
+            quantity=data.quantity,
+            price=data.price
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+        return item
 
-# Service Layer
-def add_inventory_item(data: InventoryItemCreate) -> InventoryItem:
-    item_id = _get_next_id()
-    item = InventoryItem(id=item_id, **data.dict())
-    with store_lock:
-        inventory_store[item_id] = item
-    return item
+    @staticmethod
+    def get_items(db: Session) -> List[InventoryItemDB]:
+        return db.query(InventoryItemDB).all()
 
-def get_all_inventory_items() -> List[InventoryItem]:
-    with store_lock:
-        return list(inventory_store.values())
+    @staticmethod
+    def update_quantity(db: Session, item_id: str, quantity: int) -> InventoryItemDB:
+        item = db.query(InventoryItemDB).filter(InventoryItemDB.id == item_id).first()
+        if not item:
+            raise HTTPException(status_code=404, detail="Inventory item not found")
+        item.quantity = quantity
+        db.commit()
+        db.refresh(item)
+        return item
 
-def update_inventory_item_quantity(item_id: int, quantity: int) -> InventoryItem:
-    with store_lock:
-        if item_id not in inventory_store:
-            raise HTTPException(status_code=404, detail="Item not found")
-        item = inventory_store[item_id]
-        updated_item = item.copy(update={'quantity': quantity})
-        inventory_store[item_id] = updated_item
-        return updated_item
+    @staticmethod
+    def delete_item(db: Session, item_id: str):
+        item = db.query(InventoryItemDB).filter(InventoryItemDB.id == item_id).first()
+        if not item:
+            raise HTTPException(status_code=404, detail="Inventory item not found")
+        db.delete(item)
+        db.commit()
 
-def delete_inventory_item(item_id: int):
-    with store_lock:
-        if item_id not in inventory_store:
-            raise HTTPException(status_code=404, detail="Item not found")
-        del inventory_store[item_id]
+# --- FastAPI App & Routes ---
 
-# API Routes
-@app.post("/items/", response_model=InventoryItem, status_code=status.HTTP_201_CREATED)
-def create_item(item_data: InventoryItemCreate):
-    item = add_inventory_item(item_data)
-    return item
+app = FastAPI(title="Inventory Management API", version="1.0.0")
 
-@app.get("/items/", response_model=List[InventoryItem])
-def list_items():
-    return get_all_inventory_items()
+@app.on_event("startup")
+def on_startup():
+    Base.metadata.create_all(bind=engine)
 
-@app.put("/items/{item_id}/quantity/", response_model=InventoryItem)
-def update_item_quantity(item_id: int, quantity_update: InventoryQuantityUpdate):
-    updated = update_inventory_item_quantity(item_id, quantity_update.quantity)
-    return updated
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-@app.delete("/items/{item_id}/", response_class=JSONResponse)
-def delete_item(item_id: int):
-    delete_inventory_item(item_id)
-    return {"message": "Item deleted successfully"}
+@app.post("/api/inventory", response_model=InventoryItemResponse, status_code=status.HTTP_201_CREATED)
+def add_inventory_item(item: InventoryItemCreate, db: Session = next(get_db())):
+    result = InventoryService.create_item(db, item)
+    return InventoryItemResponse.from_orm(result)
+
+@app.get("/api/inventory", response_model=List[InventoryItemResponse])
+def list_inventory_items(db: Session = next(get_db())):
+    items = InventoryService.get_items(db)
+    return [InventoryItemResponse.from_orm(i) for i in items]
+
+@app.put("/api/inventory/{item_id}/quantity", response_model=InventoryItemResponse)
+def update_inventory_quantity(
+    item_id: str = Path(..., title="Inventory Item ID"),
+    update: InventoryItemQuantityUpdate = ...,
+    db: Session = next(get_db())
+):
+    result = InventoryService.update_quantity(db, item_id, update.quantity)
+    return InventoryItemResponse.from_orm(result)
+
+@app.delete("/api/inventory/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_inventory_item(item_id: str = Path(..., title="Inventory Item ID"), db: Session = next(get_db())):
+    InventoryService.delete_item(db, item_id)
+    return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
