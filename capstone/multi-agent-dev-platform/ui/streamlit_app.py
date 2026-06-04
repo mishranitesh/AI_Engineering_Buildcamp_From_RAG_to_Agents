@@ -10,29 +10,46 @@ st.title("Multi-Agent Software Builder")
 req = st.text_area("Enter Requirement")
 
 with st.sidebar:
-    st.header("GitHub Integration (Phase 2)")
+    st.header("Options")
+    jira_enabled = st.checkbox("Create JIRA Epic & Stories")
     github_enabled = st.checkbox("Create Draft PR on GitHub")
 
-# ── Run Workflow ──────────────────────────────────────────────────────────────
-if st.button("Run Agents"):
-    with st.spinner("Generating project..."):
-        try:
-            response = requests.post(
-                f"{API}/run-workflow",
-                json={"requirement": req, "github_enabled": github_enabled},
-            )
-            if response.status_code != 200:
-                st.error(f"API Error {response.status_code}")
-                st.write(response.text)
+# Stage 1
+if st.button("Run PM Agent"):
+    with st.spinner("Running PM Agent..."):
+        r = requests.post(f"{API}/run-pm", json={"requirement": req, "jira_enabled": jira_enabled})
+        if r.status_code == 200:
+            st.session_state["pm_result"] = r.json()
+            st.session_state.pop("result", None) # clear any previous codegen result
+        else:
+            st.error(r.text)
+
+pm_result = st.session_state.get("pm_result")
+
+if pm_result:
+    if pm_result.get("jira_epic_url"):
+        st.subheader("📋 JIRA Issues Created")
+        st.markdown(f"**Epic:** [{pm_result['jira_epic_key']}]({pm_result['jira_epic_url']})")
+        for key, url in zip(pm_result["jira_story_keys"], pm_result["jira_story_urls"]):
+            st.markdown(f"- [{key}]({url})")
+        st.info("Review and edit stories in JIRA if needed, then click Generate Code.")
+    else:
+        st.subheader("📋 PM Agent Output")
+        st.markdown(pm_result["user_stories"][0] if pm_result.get("user_stories") else "")
+        st.info("Review the stories above, then click Generate Code.")
+
+    # Stage 2 gate
+    st.divider()
+    if st.button("✅ Stories confirmed — Generate Code"):
+        with st.spinner("Generating code..."):
+            r = requests.post(f"{API}/run-codegen", json={
+                "project_name": pm_result["project_name"],
+                "github_enabled": github_enabled,
+            })
+            if r.status_code == 200:
+                st.session_state["result"] = r.json()
             else:
-                result = response.json()
-                if result.get("status") == "completed":
-                    st.session_state["result"] = result   # persist across reruns
-                else:
-                    st.error("Project generation failed")
-                    st.write(result)
-        except Exception as e:
-            st.error(f"Error: {e}")
+                st.error(f"Code generation failed: {r.text}")
 
 # ── Results ───────────────────────────────────────────────────────────────────
 result = st.session_state.get("result")
@@ -106,9 +123,23 @@ if result:
                     transition("merge")
 
         elif phase == "fixing":
-            st.info("AutoFix applied. Review the new commits, then merge.")
-            if st.button("Merge PR →"):
-                transition("merge")
+            st.info("AutoFix applied. Review the PR commits, then fix more or merge.")
+
+            review_comments = result.get("review_comments", [])
+            accepted = []
+            if review_comments:
+                st.markdown("**Select additional comments to fix (optional):**")
+                for i, comment in enumerate(review_comments):
+                    if st.checkbox(comment[:120], key=f"refix_comment_{i}"):
+                        accepted.append(comment)
+
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Fix More →"):
+                    transition("fix", accepted)
+            with col2:
+                if st.button("Merge PR →"):
+                    transition("merge")
 
         elif phase == "merged":
             st.success("PR merged to main!")

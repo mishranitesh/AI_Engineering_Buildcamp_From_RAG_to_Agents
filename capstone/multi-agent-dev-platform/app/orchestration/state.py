@@ -30,6 +30,12 @@ class WorkflowState(BaseModel):
     pr_url: str | None = None
     fixed_code: dict[str, str] = {}
 
-    # Add to WorkflowState
     pr_phase: str = "none"  # none | draft | ready_for_review | fixing | merged
     pr_accepted_comments: list[str] = []  # comments selected for autofix
+
+    jira_enabled: bool = False
+    jira_epic_key: str | None = None
+    jira_epic_url: str | None = None
+    jira_story_keys: list[str] = []
+    jira_story_urls: list[str] = []
+    jira_task_keys: list[str] = []

@@ -69,7 +69,6 @@ class WorkflowOrchestrator:
         logger.info(f"Phase 1 done | draft PR={pr_url}")
         return state
 
-
     def phase_ready_for_review(self, state: WorkflowState) -> WorkflowState:
         """Phase 2: Mark PR ready, post Review Agent comments."""
         gh = GitHubTool()
@@ -77,12 +76,14 @@ class WorkflowOrchestrator:
         gh.mark_pr_ready_for_review(state.pr_number)
 
         if state.review_comments:
-            gh.add_pr_comment(state.pr_number, f"## Review Agent Report\n\n{state.review_comments[0]}")
+            all_comments = "\n\n".join(
+                f"{i+1}. {c}" for i, c in enumerate(state.review_comments)
+            )
+            gh.add_pr_comment(state.pr_number, f"## Review Agent Report\n\n{all_comments}")
 
         state.pr_phase = "ready_for_review"
         logger.info(f"Phase 2 done | PR marked ready | pr={state.pr_number}")
         return state
-
 
     def phase_fix_pr(self, state: WorkflowState) -> WorkflowState:
         """Phase 3: AutoFix based on accepted review comments, commit fixes."""
@@ -109,7 +110,6 @@ class WorkflowOrchestrator:
         logger.info(f"Phase 3 done | fixed files={list(state.fixed_code.keys())}")
         return state
 
-
     def phase_merge_pr(self, state: WorkflowState) -> WorkflowState:
         """Phase 4: Merge PR to main."""
         gh = GitHubTool()
@@ -119,64 +119,198 @@ class WorkflowOrchestrator:
             logger.info(f"Phase 4 done | PR merged | pr={state.pr_number}")
         return state
 
-    """
-    def _run_github_phase(self, state: WorkflowState, auto_merge: bool = False) -> None:
-        gh = GitHubTool()
-        autofix = AutoFixAgent()
+    def _extract_user_stories(self, pm_output: str) -> list[str]:
+        stories = []
+        in_section = False
+        for line in pm_output.split("\n"):
+            low = line.lower().strip()
 
-        branch_name = f"ai-gen/{state.project_name}-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
+            # Detect section start
+            if "user stor" in low and ("##" in line or "**" in line or low.startswith("user stor")):
+                in_section = True
+                continue
 
-        # 1. Create branch
+            # Stop at next section
+            if in_section and any(k in low for k in ("acceptance criteria", "tech stack", "## ")):
+                in_section = False
+
+            if not in_section or not line.strip():
+                continue
+
+            # Only take top-level items — skip indented sub-points
+            if line.startswith("  ") or line.startswith("\t"):
+                continue
+
+            story = re.sub(r"^[\s\-\*\d\.]+", "", line).strip()
+
+            # Only keep lines that look like actual stories
+            if len(story) > 15 and story.lower().startswith(("as a", "user can", "the system", "allow")):
+                stories.append(story)
+
+        return stories[:8] or ["Implement core functionality"]   # hard cap at 8
+
+    def _extract_tasks_from_architecture(self, arch_output: str) -> list[str]:
+        """Extract component/module names from architecture output as tasks."""
+        tasks = []
+        for line in arch_output.split("\n"):
+            line = line.strip()
+            if line.startswith(("-", "*", "•")) and len(line) > 5:
+                task = re.sub(r"^[\s\-\*•]+", "", line).strip()
+                if task:
+                    tasks.append(task)
+        return tasks[:8]  # cap at 8 tasks
+
+    def phase_jira(self, state: WorkflowState) -> WorkflowState:
+        """Phase 3: Create Epic → Stories → Tasks in JIRA."""
+        from app.tools.jira_tool import JiraTool
+        jira = JiraTool()
+
+        # Epic from requirement
+        epic_key, epic_url = jira.create_epic(
+            title=f"[AI] {state.project_name}",
+            description=state.requirement[:500],
+        )
+        state.jira_epic_key = epic_key
+        state.jira_epic_url = epic_url
+        logger.info(f"JIRA Epic created | key={epic_key} | url={epic_url}")
+
+        # Stories from PM Agent output
+        stories = self._extract_user_stories(state.user_stories[0] if state.user_stories else "")
+        tasks_source = self._extract_tasks_from_architecture(state.architecture)
+
+        for story_text in stories:
+            story_key, story_url = jira.create_story(story_text, epic_key)
+            state.jira_story_keys.append(story_key)
+            state.jira_story_urls.append(story_url)
+            logger.info(f"JIRA Story created | key={story_key}")
+
+            # Create tasks under first story only (architecture components)
+            if story_key == state.jira_story_keys[0]:
+                for task_text in tasks_source:
+                    task_key, _ = jira.create_task(task_text, story_key)
+                    state.jira_task_keys.append(task_key)
+                    logger.info(f"JIRA Task created | key={task_key}")
+
+        state.jira_enabled = True
+        return state
+
+    def run_pm_phase(self, requirement: str, jira_enabled: bool = False) -> WorkflowState:
+        """Stage 1: PM Agent + optional JIRA setup. Returns state, waits for confirmation."""
+        state = WorkflowState(requirement=requirement)
+        logger.info(f"PM phase started | requirement='{requirement[:80]}...'")
+
         t = time.time()
-        gh.create_branch(branch_name)
-        logger.info(f"GitHub branch created | branch={branch_name} | elapsed={time.time()-t:.1f}s")
-        state.github_branch = branch_name
+        pm_output = self.pm.process(requirement)
+        logger.info(f"PM Agent done | elapsed={time.time()-t:.1f}s")
+        state.user_stories = [pm_output]
 
-        # 2. Commit generated files
-        all_files = {}
-        for fname, code in state.backend_code.items():
-            all_files[f"backend/{fname}"] = code
-        for fname, code in state.tests.items():
-            all_files[f"tests/{fname}"] = code
+        if jira_enabled:
+            try:
+                self._create_jira_epic_and_stories(state)
+            except Exception as e:
+                logger.error(f"JIRA phase failed: {e}")
 
-        t = time.time()
-        gh.commit_files(branch_name, all_files, f"feat: AI-generated code for {state.project_name}", project_name=state.project_name)
-        logger.info(f"GitHub files committed | files={list(all_files.keys())} | elapsed={time.time()-t:.1f}s")
-
-        # 3. Open PR
-        pr_body = f"## AI-Generated Project\n\n**Requirement:**\n{state.requirement[:500]}\n\n**Review Comments:**\n{state.review_comments[0][:1000] if state.review_comments else ''}"
-        t = time.time()
-        pr_number, pr_url = gh.create_pull_request(branch_name, f"AI: {state.project_name}", pr_body)
-        logger.info(f"GitHub PR created | pr_url={pr_url} | elapsed={time.time()-t:.1f}s")
-        state.pr_number = pr_number
-        state.pr_url = pr_url
-
-        # 4. Post review comments on PR
-        if state.review_comments:
-            gh.add_pr_comment(pr_number, f"## Review Agent Report\n\n{state.review_comments[0]}")
-
-        # 5. Auto-fix Agent
-        t = time.time()
-        code_str = self._dict_to_str(state.backend_code)
-        review_str = state.review_comments[0] if state.review_comments else ""
-        fixed_raw = autofix.process(code_str, review_str)
-        state.fixed_code = self._extract_files_from_autofix(fixed_raw)
-        logger.info(f"AutoFix Agent done | files={list(state.fixed_code.keys())} | elapsed={time.time()-t:.1f}s")
-
-        # Commit fixed code if any files were extracted
-        if state.fixed_code:
-            fixed_with_path = {f"backend/{f}": c for f, c in state.fixed_code.items()}
-            gh.commit_files(branch_name, fixed_with_path, "fix: Apply Auto-Fix Agent review corrections", project_name=state.project_name)
-            gh.add_pr_comment(pr_number, "Auto-Fix Agent applied corrections based on review comments.")
-
-        # 6. Optionally merge
-        if auto_merge:
-            merged = gh.merge_pull_request(pr_number)
-            if merged:
-                logger.info(f"GitHub PR merged | pr_number={pr_number}")
-    """
+        state.final_status = "pm_complete"
+        return state
     
-    def run(self, requirement: str, github_enabled: bool = False, auto_merge: bool = False) -> WorkflowState:
+    def run_codegen_phase(self, state: WorkflowState, github_enabled: bool = False) -> WorkflowState:
+        """Stage 2: Fetch confirmed JIRA stories → generate code → GitHub."""
+
+        # If JIRA enabled, fetch potentially edited stories back from JIRA
+        if state.jira_enabled and state.jira_epic_key:
+            try:
+                from app.tools.jira_tool import JiraTool
+                confirmed = JiraTool().get_stories(state.jira_epic_key)
+                if confirmed:
+                    state.user_stories = confirmed   # replace PM output with JIRA-confirmed stories
+                    logger.info(f"Fetched {len(confirmed)} confirmed stories from JIRA")
+            except Exception as e:
+                logger.error(f"Could not fetch JIRA stories, using PM output: {e}")
+
+        pm_context = "\n".join(state.user_stories)
+
+        t = time.time()
+        arch_output, mermaid_output = self.architect.process(pm_context)
+        logger.info(f"Architect Agent done | elapsed={time.time()-t:.1f}s")
+        state.architecture = arch_output
+        state.mermaid = mermaid_output
+
+        t = time.time()
+        dev_output = self.dev.process(pm_context + "\n" + arch_output)
+        logger.info(f"Developer Agent done | files={list(dev_output.keys())} | elapsed={time.time()-t:.1f}s")
+        state.backend_code = dev_output
+
+        t = time.time()
+        test_output = self.qa.process(dev_output)
+        logger.info(f"QA Agent done | elapsed={time.time()-t:.1f}s")
+        state.tests = test_output
+
+        t = time.time()
+        review_output = self.review.process(self._dict_to_str(dev_output) + "\n" + self._dict_to_str(test_output))
+        logger.info(f"Review Agent done | elapsed={time.time()-t:.1f}s")
+        state.review_comments = self._parse_review_comments(review_output)
+
+        project_dir = create_project_directory(state.project_name)
+        write_backend_files(project_dir, state.backend_code)
+        write_tests(project_dir, state.tests)
+        write_architecture(project_dir, state.architecture, state.mermaid)
+        write_review(project_dir, state.review_comments)
+        readme = generate_readme(state)
+        write_readme(project_dir, readme)
+        zip_file = create_zip(project_dir)
+
+        state.generated_path = str(project_dir)
+        state.zip_file = zip_file
+        state.final_status = "completed"
+
+        if github_enabled:
+            state.github_enabled = True
+            try:
+                self.phase_draft_pr(state)
+            except Exception as e:
+                logger.error(f"GitHub draft PR phase failed: {e}")
+
+        return state
+    
+    def _create_jira_epic_and_stories(self, state: WorkflowState) -> None:
+        from app.tools.jira_tool import JiraTool
+        jira = JiraTool()
+
+        epic_key, epic_url = jira.create_epic(
+            title=f"[AI] {state.project_name}",
+            description=state.requirement[:500],
+        )
+        state.jira_epic_key = epic_key
+        state.jira_epic_url = epic_url
+        state.jira_enabled = True
+        logger.info(f"JIRA Epic created | key={epic_key}")
+
+        stories = self._extract_user_stories(state.user_stories[0])
+        for story_text in stories:
+            story_key, story_url = jira.create_story(story_text, epic_key)
+            state.jira_story_keys.append(story_key)
+            state.jira_story_urls.append(story_url)
+            logger.info(f"JIRA Story created | key={story_key}")
+
+    def _parse_review_comments(self, review_output: str) -> list[str]:
+        """Split review output into individual numbered items."""
+        import re
+        lines = review_output.split("\n")
+        items = []
+        current = []
+        for line in lines:
+            if re.match(r'^\d+\.\s', line.strip()):   # starts with "1. ", "2. " etc.
+                if current:
+                    items.append("\n".join(current).strip())
+                current = [line.strip()]
+            elif current:
+                current.append(line.strip())
+        if current:
+            items.append("\n".join(current).strip())
+        return [i for i in items if len(i) > 10] or [review_output]
+    
+    """
+    def run(self, requirement: str, github_enabled: bool = False, auto_merge: bool = False, jira_enabled: bool = False) -> WorkflowState:
         state = WorkflowState(requirement=requirement)
         logger.info(f"Workflow started | requirement='{requirement[:80]}...'")
 
@@ -212,6 +346,12 @@ class WorkflowOrchestrator:
         logger.info(f"Review Agent done | elapsed={time.time()-t:.1f}s")
         state.review_comments = [review_output]
 
+        if jira_enabled:
+            try:
+                self.phase_jira(state)
+            except Exception as e:
+                logger.error(f"JIRA phase failed: {e}")
+
         # Add file generation pipeline at the end
         project_dir = create_project_directory(state.project_name)
 
@@ -239,3 +379,4 @@ class WorkflowOrchestrator:
                 logger.error(f"GitHub draft PR phase failed: {e}")
 
         return state
+    """
