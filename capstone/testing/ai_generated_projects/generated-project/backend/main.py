@@ -1,84 +1,78 @@
-from fastapi import FastAPI, HTTPException, status
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, validator
-from typing import Dict, List
-from threading import Lock
+from fastapi import FastAPI, Depends, HTTPException, status, Path
+from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.orm import Session
+from typing import List
+import uvicorn
 
-app = FastAPI(title="Inventory API")
+from models import Base, InventoryItem
+from schemas import InventoryItemCreate, InventoryItemOut, InventoryItemUpdateQuantity
+from services import (
+    get_db,
+    create_inventory_item,
+    get_all_inventory_items,
+    update_inventory_item_quantity,
+    delete_inventory_item,
+)
+from auth import get_current_user, User
 
-class InventoryItemCreate(BaseModel):
-    name: str = Field(..., min_length=1)
-    quantity: int = Field(..., ge=0)
-    price: float = Field(..., ge=0.0)
+app = FastAPI()
 
-    @validator("name")
-    def name_cannot_be_blank(cls, v):
-        if not v.strip():
-            raise ValueError("Name must not be empty")
-        return v.strip()
 
-class InventoryItem(InventoryItemCreate):
-    id: int
+@app.post(
+    "/api/inventory",
+    response_model=InventoryItemOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def api_create_inventory_item(
+    item: InventoryItemCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return create_inventory_item(db, item)
 
-class InventoryQuantityUpdate(BaseModel):
-    quantity: int = Field(..., ge=0)
 
-# In-memory store and id lock/incrementor
-inventory_store: Dict[int, InventoryItem] = {}
-id_lock = Lock()
-store_lock = Lock()
-next_id = 1
+@app.get(
+    "/api/inventory",
+    response_model=List[InventoryItemOut],
+)
+def api_get_all_inventory_items(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return get_all_inventory_items(db)
 
-def _get_next_id() -> int:
-    global next_id
-    with id_lock:
-        curr = next_id
-        next_id += 1
-    return curr
 
-# Service Layer
-def add_inventory_item(data: InventoryItemCreate) -> InventoryItem:
-    item_id = _get_next_id()
-    item = InventoryItem(id=item_id, **data.dict())
-    with store_lock:
-        inventory_store[item_id] = item
-    return item
+@app.patch(
+    "/api/inventory/{item_id}/quantity",
+    response_model=InventoryItemOut,
+)
+def api_update_inventory_quantity(
+    item_id: str = Path(..., title="The ID of the item to update"),
+    patch: InventoryItemUpdateQuantity = Depends(),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return update_inventory_item_quantity(db, item_id, patch.quantity)
 
-def get_all_inventory_items() -> List[InventoryItem]:
-    with store_lock:
-        return list(inventory_store.values())
 
-def update_inventory_item_quantity(item_id: int, quantity: int) -> InventoryItem:
-    with store_lock:
-        if item_id not in inventory_store:
-            raise HTTPException(status_code=404, detail="Item not found")
-        item = inventory_store[item_id]
-        updated_item = item.copy(update={'quantity': quantity})
-        inventory_store[item_id] = updated_item
-        return updated_item
+@app.delete(
+    "/api/inventory/{item_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def api_delete_inventory_item(
+    item_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    delete_inventory_item(db, item_id)
+    return
 
-def delete_inventory_item(item_id: int):
-    with store_lock:
-        if item_id not in inventory_store:
-            raise HTTPException(status_code=404, detail="Item not found")
-        del inventory_store[item_id]
 
-# API Routes
-@app.post("/items/", response_model=InventoryItem, status_code=status.HTTP_201_CREATED)
-def create_item(item_data: InventoryItemCreate):
-    item = add_inventory_item(item_data)
-    return item
-
-@app.get("/items/", response_model=List[InventoryItem])
-def list_items():
-    return get_all_inventory_items()
-
-@app.put("/items/{item_id}/quantity/", response_model=InventoryItem)
-def update_item_quantity(item_id: int, quantity_update: InventoryQuantityUpdate):
-    updated = update_inventory_item_quantity(item_id, quantity_update.quantity)
-    return updated
-
-@app.delete("/items/{item_id}/", response_class=JSONResponse)
-def delete_item(item_id: int):
-    delete_inventory_item(item_id)
-    return {"message": "Item deleted successfully"}
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000)
