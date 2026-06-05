@@ -1,5 +1,7 @@
 from app.agents.base_agent import BaseAgent
 from app.parsers.code_parser import extract_code_files
+from app.tools.knowledge_base import retrieve
+from app.monitoring.logger import logger
 
 DEV_PROMPT = """
 You are a Senior Backend Developer.
@@ -26,7 +28,10 @@ class DeveloperAgent(BaseAgent):
     def __init__(self):
         super().__init__(DEV_PROMPT)
 
-    def process(self, input_text: str) -> str:
-        response = self.run(input_text)
-        files = extract_code_files(response)
-        return files
+    def process(self, requirement: str) -> dict:
+        patterns = retrieve(requirement, n_results=3)
+        logger.info(f"KB retrieved {len(patterns)} patterns: {[p[:50] for p in patterns]}")
+        context = "\n".join(f"- {p}" for p in patterns)
+        augmented_input = f"## Relevant Best Practices\n{context}\n\n## Requirement\n{requirement}"
+        raw = self.run(augmented_input)
+        return extract_code_files(raw) # it parses the LLM's raw text output into a {filename: code} dict that the rest of the workflow expects.

@@ -1,4 +1,6 @@
 from app.agents.base_agent import BaseAgent
+from app.tools.knowledge_base import retrieve
+from app.monitoring.logger import logger
 
 REVIEW_PROMPT = """
 You are a Senior Code Reviewer.
@@ -25,4 +27,8 @@ class ReviewAgent(BaseAgent):
         super().__init__(REVIEW_PROMPT)
 
     def process(self, code: str) -> str:
-        return self.run(code)
+        patterns = retrieve(code[:500], n_results=3)   # use first 500 chars as query
+        logger.info(f"KB retrieved {len(patterns)} patterns for review: {[p[:50] for p in patterns]}")
+        context = "\n".join(f"- {p}" for p in patterns)
+        augmented_input = f"## Known Best Practices to Check Against\n{context}\n\n## Code to Review\n{code}"
+        return self.run(augmented_input)
