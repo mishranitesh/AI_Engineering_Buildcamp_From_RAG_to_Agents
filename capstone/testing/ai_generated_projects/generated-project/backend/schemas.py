@@ -10,14 +10,11 @@ class TodoResponse(BaseModel):
     id: UUID
     title: str
     description: str
-    createdAt: datetime
+    createdAt: datetime = Field(..., alias="created_at")
 
     class Config:
         orm_mode = True
         allow_population_by_field_name = True
-        fields = {
-            "created_at": "createdAt"
-        }
 
 class ErrorResponse(BaseModel):
     error: str
