@@ -1,220 +1,207 @@
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from unittest.mock import MagicMock, patch
+from uuid import uuid4, UUID
+from datetime import datetime
+import main
+import models
+import services
+import schemas
 
-from main import (
-    app, Base, InventoryRepository, InventoryService,
-    InventoryCreateRequest, UpdateQuantityRequest, InventoryItem
-)
+# ----------- Fixtures and helpers ------------
 
-# ----------------------
-# ---- DB FIXTURES -----
-# ----------------------
+@pytest.fixture
+def client():
+    app = main.app
+    return TestClient(app)
 
-# Use a separate in-memory database for testing
-TEST_DB_URL = "sqlite:///:memory:"
+@pytest.fixture
+def mock_db_session():
+    return MagicMock()
 
-@pytest.fixture(scope="function")
-def db_session():
-    engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
-    TestingSessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
-    Base.metadata.create_all(bind=engine)
-    session = TestingSessionLocal()
-    yield session
-    session.close()
-    Base.metadata.drop_all(bind=engine)
+@pytest.fixture
+def todo_obj():
+    class Dummy:
+        pass
+    obj = Dummy()
+    obj.id = uuid4()
+    obj.title = "Walk the dog"
+    obj.description = "Take Fido for a walk in the park."
+    obj.created_at = datetime(2023, 12, 31, 12, 0, 0)
+    return obj
 
-@pytest.fixture(scope="function")
-def repo(db_session):
-    return InventoryRepository(db_session)
+@pytest.fixture
+def todo_data(todo_obj):
+    return {
+        "id": str(todo_obj.id),
+        "title": todo_obj.title,
+        "description": todo_obj.description,
+        "createdAt": todo_obj.created_at.isoformat(),
+    }
 
-@pytest.fixture(scope="function")
-def service(repo):
-    return InventoryService(repo)
+# ----------- Unit Tests: Services ------------
 
-@pytest.fixture(scope="function")
-def client(monkeypatch):
-    engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
-    TestingSessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
-    Base.metadata.create_all(bind=engine)
-    def override_get_db():
-        db = TestingSessionLocal()
-        try:
-            yield db
-        finally:
-            db.close()
-    app.dependency_overrides = {}
-    from main import get_db
-    app.dependency_overrides[get_db] = override_get_db
-    client = TestClient(app)
-    yield client
-    app.dependency_overrides = {}
+def test_create_todo_service_success(mock_db_session):
+    request = schemas.TodoCreateRequest(title="Test", description="Test desc")
+    svc = services.TodoService(mock_db_session)
+    # Patch DB methods
+    mock_db_session.add = MagicMock()
+    mock_db_session.commit = MagicMock()
+    mock_db_session.refresh = lambda t: None
 
-# ----------------------
-# -- UNIT TESTS -------
-# ----------------------
+    todo_model_cls = models.TodoDBModel
+    todo = svc.create_todo(request)
+    assert isinstance(todo, todo_model_cls)
+    assert todo.title == request.title
+    assert todo.description == request.description
 
-def test_repo_create_and_get_item(repo):
-    item = repo.create(name="Widget", quantity=10, price=9.99)
-    assert item.id > 0
-    assert item.name == "Widget"
-    assert item.quantity == 10
-    assert float(item.price) == 9.99
+def test_list_todos_service_returns_ordered(mock_db_session, todo_obj):
+    svc = services.TodoService(mock_db_session)
+    mock_db_session.query().order_by().all.return_value = [todo_obj]
+    todos = svc.list_todos()
+    assert todos == [todo_obj]
 
-    fetched = repo.get(item.id)
-    assert fetched is not None
-    assert fetched.id == item.id
-
-def test_repo_list_items(repo):
-    repo.create(name="A", quantity=1, price=1.5)
-    repo.create(name="B", quantity=2, price=2.5)
-    items = repo.list()
-    assert len(items) == 2
-    names = {it.name for it in items}
-    assert {"A", "B"} == names
-
-def test_repo_update_quantity(repo):
-    item = repo.create(name="A", quantity=2, price=2.5)
-    updated = repo.update_quantity(item.id, 5)
-    assert updated.quantity == 5
-    # Non-existing item
-    none = repo.update_quantity(999, 10)
-    assert none is None
-
-def test_repo_delete(repo):
-    item = repo.create(name="A", quantity=2, price=2.5)
-    result = repo.delete(item.id)
+def test_delete_todo_service_found_and_deleted(mock_db_session, todo_obj):
+    svc = services.TodoService(mock_db_session)
+    # Simulate found
+    mock_q = MagicMock()
+    mock_q.filter_by.return_value.first.return_value = todo_obj
+    mock_db_session.query.return_value = mock_q
+    mock_db_session.delete = MagicMock()
+    mock_db_session.commit = MagicMock()
+    
+    result = svc.delete_todo(todo_obj.id)
     assert result is True
-    # Idempotent: deleting again
-    result2 = repo.delete(item.id)
-    assert result2 is False
 
-def test_service_add_item(service):
-    req = InventoryCreateRequest(name="Test", quantity=4, price=12.23)
-    obj = service.add_item(req)
-    assert obj.id
-    assert obj.name == "Test"
-    assert obj.quantity == 4
-    assert float(obj.price) == 12.23
+def test_delete_todo_service_not_found(mock_db_session, todo_obj):
+    svc = services.TodoService(mock_db_session)
+    # Simulate not found
+    mock_q = MagicMock()
+    mock_q.filter_by.return_value.first.return_value = None
+    mock_db_session.query.return_value = mock_q
+    
+    result = svc.delete_todo(uuid4())
+    assert result is False
 
-def test_service_add_item_trim_name(service):
-    req = InventoryCreateRequest(name="  Space  ", quantity=4, price=12.23)
-    obj = service.add_item(req)
-    # Should strip whitespace in name
-    assert obj.name == "Space"
+# ----------- API Tests: Happy paths ------------
 
-def test_service_update_item_quantity(service):
-    add = InventoryCreateRequest(name="Test", quantity=4, price=1.00)
-    obj = service.add_item(add)
-    updated = service.update_item_quantity(obj.id, 99)
-    assert updated.quantity == 99
+def test_create_todo_api(client):
+    with patch("main.get_db", return_value=(v for v in [MagicMock()])):
+        with patch.object(services.TodoService, "create_todo") as mock_create:
+            todo_id = uuid4()
+            now = datetime.utcnow()
+            mock_create.return_value = MagicMock(
+                id=todo_id, title="Test", description="Test desc", created_at=now
+            )
+            resp = client.post("/todos", json={"title": "Test", "description": "Test desc"})
+            assert resp.status_code == 201
+            data = resp.json()
+            assert data["id"] == str(todo_id)
+            assert data["title"] == "Test"
+            assert data["description"] == "Test desc"
+            assert "createdAt" in data
 
-def test_service_update_item_quantity_invalid_id(service):
-    with pytest.raises(Exception) as excinfo:
-        service.update_item_quantity(9999, 1)
-    assert excinfo.value.status_code == 404
+def test_list_todos_api(client):
+    with patch("main.get_db", return_value=(v for v in [MagicMock()])):
+        with patch.object(services.TodoService, "list_todos") as mock_list:
+            todo_id = uuid4()
+            now = datetime.utcnow()
+            mock_list.return_value = [
+                MagicMock(id=todo_id, title="Foo", description="Bar", created_at=now)
+            ]
+            resp = client.get("/todos")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert isinstance(data, list)
+            assert len(data) == 1
+            assert data[0]["id"] == str(todo_id)
+            assert data[0]["title"] == "Foo"
 
-def test_service_update_item_quantity_negative(service):
-    add = InventoryCreateRequest(name="Test", quantity=3, price=1.00)
-    obj = service.add_item(add)
-    with pytest.raises(Exception) as excinfo:
-        service.update_item_quantity(obj.id, -1)
-    assert excinfo.value.status_code == 400
+def test_delete_todo_api_success(client):
+    with patch("main.get_db", return_value=(v for v in [MagicMock()])):
+        with patch.object(services.TodoService, "delete_todo") as mock_delete:
+            mock_delete.return_value = True
+            todo_id = str(uuid4())
+            resp = client.delete(f"/todos/{todo_id}")
+            assert resp.status_code == 204
 
-def test_service_delete_item_success(service):
-    req = InventoryCreateRequest(name="Test", quantity=2, price=2)
-    obj = service.add_item(req)
+def test_delete_todo_api_404(client):
+    with patch("main.get_db", return_value=(v for v in [MagicMock()])):
+        with patch.object(services.TodoService, "delete_todo") as mock_delete:
+            mock_delete.return_value = False
+            fake_id = str(uuid4())
+            resp = client.delete(f"/todos/{fake_id}")
+            assert resp.status_code == 404
+            assert resp.json()["detail"] == "Todo item not found"
+
+# ----------- API Tests: Edge cases ------------
+
+@pytest.mark.parametrize("payload,missing_field", [
+    ({"description": "hello"}, "title"),
+    ({"title": "title"}, "description"),
+    ({}, "required field"),
+])
+def test_create_todo_validation_missing_fields(client, payload, missing_field):
+    resp = client.post("/todos", json=payload)
+    assert resp.status_code == 422
+    assert "detail" in resp.json()
+    # Validate error about missing field
+    detail = str(resp.json()["detail"])
+    assert missing_field in detail
+
+def test_create_todo_title_too_long(client):
+    payload = {"title": "a" * 201, "description": "desc"}
+    resp = client.post("/todos", json=payload)
+    assert resp.status_code == 422
+
+def test_create_todo_empty_description(client):
+    payload = {"title": "walk dog", "description": ""}
+    resp = client.post("/todos", json=payload)
+    assert resp.status_code == 422
+
+def test_delete_todo_invalid_uuid(client):
+    resp = client.delete("/todos/not-a-uuid")
+    assert resp.status_code == 422
+    assert "detail" in resp.json()
+
+def test_list_todos_empty(client):
+    with patch("main.get_db", return_value=(v for v in [MagicMock()])):
+        with patch.object(services.TodoService, "list_todos") as mock_list:
+            mock_list.return_value = []
+            resp = client.get("/todos")
+            assert resp.status_code == 200
+            assert resp.json() == []
+
+# ----------- Edge case: create and delete sequence ------------
+
+def test_create_and_delete_flow(client):
+    todo_id = uuid4()
+    created_at = datetime.utcnow()
+    # Step 1: POST -> create
+    with patch("main.get_db", return_value=(v for v in [MagicMock()])):
+        with patch.object(services.TodoService, "create_todo") as mock_create:
+            mock_create.return_value = MagicMock(
+                id=todo_id, title="Z", description="Y", created_at=created_at
+            )
+            post_resp = client.post("/todos", json={"title": "Z", "description": "Y"})
+            assert post_resp.status_code == 201
+            assert post_resp.json()["id"] == str(todo_id)
+    # Step 2: DELETE same
+    with patch("main.get_db", return_value=(v for v in [MagicMock()])):
+        with patch.object(services.TodoService, "delete_todo") as mock_delete:
+            mock_delete.return_value = True
+            del_resp = client.delete(f"/todos/{todo_id}")
+            assert del_resp.status_code == 204
+
+# ----------- Startup event test ------------
+
+def test_startup_creates_tables(monkeypatch):
+    called = {}
+    class Dummy:
+        def create_all(self, bind):
+            called["ok"] = True
+    monkeypatch.setattr(main, "Base", type("B", (), {"metadata": type("M", (), {"create_all": Dummy().create_all})()})())
+    monkeypatch.setattr(main, "get_engine", lambda: "dbengine")
     # Should not raise
-    service.delete_item(obj.id)
-    # Should now raise 404
-    with pytest.raises(Exception) as excinfo:
-        service.delete_item(obj.id)
-    assert excinfo.value.status_code == 404
-
-# ----------------------
-# -- API TESTS ---------
-# ----------------------
-
-def test_api_add_and_list_inventory(client):
-    payload = {"name": "Pencil", "quantity": 120, "price": 0.49}
-    resp = client.post("/inventory", json=payload)
-    assert resp.status_code == 201
-    data = resp.json()
-    assert data["name"] == "Pencil"
-    assert data["quantity"] == 120
-    assert data["price"] == "0.49"
-
-    resp_list = client.get("/inventory")
-    assert resp_list.status_code == 200
-    items = resp_list.json()
-    assert isinstance(items, list)
-    assert any(item["name"] == "Pencil" for item in items)
-
-def test_api_add_inventory_invalid_data(client):
-    # Empty name
-    payload = {"name": "", "quantity": 2, "price": 5.0}
-    resp = client.post("/inventory", json=payload)
-    assert resp.status_code == 422
-
-    # Negative quantity
-    payload2 = {"name": "Test", "quantity": -10, "price": 5.0}
-    resp2 = client.post("/inventory", json=payload2)
-    assert resp2.status_code == 422
-
-    # Zero or negative price
-    payload3 = {"name": "Test", "quantity": 5, "price": 0}
-    resp3 = client.post("/inventory", json=payload3)
-    assert resp3.status_code == 422
-
-def test_api_update_inventory_quantity(client):
-    payload = {"name": "Notebook", "quantity": 33, "price": 3.50}
-    resp = client.post("/inventory", json=payload)
-    item_id = resp.json()["id"]
-
-    resp_update = client.put(f"/inventory/{item_id}/quantity", json={"quantity": 77})
-    assert resp_update.status_code == 200
-    upd = resp_update.json()
-    assert upd["quantity"] == 77
-    assert upd["id"] == item_id
-
-def test_api_update_inventory_quantity_negative(client):
-    payload = {"name": "NegativeTest", "quantity": 2, "price": 1.10}
-    resp = client.post("/inventory", json=payload)
-    item_id = resp.json()["id"]
-
-    resp_update = client.put(f"/inventory/{item_id}/quantity", json={"quantity": -3})
-    assert resp_update.status_code == 422
-
-def test_api_update_inventory_nonexistent(client):
-    resp_update = client.put(f"/inventory/12345/quantity", json={"quantity": 4})
-    assert resp_update.status_code == 404
-
-def test_api_delete_inventory_item(client):
-    payload = {"name": "DelTest", "quantity": 8, "price": 8.0}
-    resp = client.post("/inventory", json=payload)
-    item_id = resp.json()["id"]
-
-    resp_delete = client.delete(f"/inventory/{item_id}")
-    assert resp_delete.status_code == 204
-
-    # Delete again: should be 404
-    resp_delete2 = client.delete(f"/inventory/{item_id}")
-    assert resp_delete2.status_code == 404
-
-def test_api_delete_nonexistent(client):
-    resp = client.delete("/inventory/987654")
-    assert resp.status_code == 404
-
-def test_api_list_inventory_empty(client):
-    # Should start empty
-    resp = client.get("/inventory")
-    assert resp.status_code == 200
-    assert resp.json() == []
-
-def test_api_get_with_invalid_item_id(client):
-    # Invalid (negative) id at update
-    resp = client.put("/inventory/-10/quantity", json={"quantity": 1})
-    assert resp.status_code == 422
-    resp = client.delete("/inventory/-1")
-    assert resp.status_code == 422
+    main.on_startup()
+    assert called.get("ok") is True
