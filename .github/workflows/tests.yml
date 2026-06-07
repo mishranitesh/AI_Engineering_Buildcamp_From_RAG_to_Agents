@@ -1,0 +1,44 @@
+name: Unit Tests
+
+on:
+  push:
+    paths:
+      - 'capstone/multi-agent-dev-platform/**'
+  pull_request:
+    paths:
+      - 'capstone/multi-agent-dev-platform/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: capstone/multi-agent-dev-platform
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv pip install -r requirements.txt --system
+
+      - name: Run unit tests
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || 'sk-dummy-key-for-unit-tests' }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: python
+          JIRA_URL: https://placeholder.atlassian.net
+          JIRA_EMAIL: placeholder@email.com
+          JIRA_API_TOKEN: placeholder
+          JIRA_PROJECT_KEY: KAN
+          GITHUB_OWNER: placeholder
+          GITHUB_REPO: placeholder
+        run: |
+          uv pip install pytest --system
+          python -m pytest tests/test_parsers.py tests/test_state.py tests/test_generators.py -v
