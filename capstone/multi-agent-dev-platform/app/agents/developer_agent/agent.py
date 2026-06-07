@@ -1,6 +1,5 @@
 from app.agents.base_agent import BaseAgent
 from app.parsers.code_parser import extract_code_files
-from app.tools.knowledge_base import retrieve
 from app.monitoring.logger import logger
 
 DEV_PROMPT = """
@@ -29,6 +28,7 @@ class DeveloperAgent(BaseAgent):
         super().__init__(DEV_PROMPT)
 
     def process(self, requirement: str) -> dict:
+        from app.tools.knowledge_base import retrieve # lazy import
         patterns = retrieve(requirement, n_results=3)
         logger.info(f"KB retrieved {len(patterns)} patterns: {[p[:50] for p in patterns]}")
         context = "\n".join(f"- {p}" for p in patterns)

@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pydantic
+streamlit
+openai
+python-dotenv
+PyGithub
+loguru
+chromadb
+pandas
+requests
+pytest
+anyio
+httpx
