@@ -10,7 +10,7 @@ class Bookmark:
         url: str,
         created_at: datetime,
     ):
-        self.id = id
+        self.id = UUID(id)
         self.title = title
         self.url = url
         self.created_at = created_at
