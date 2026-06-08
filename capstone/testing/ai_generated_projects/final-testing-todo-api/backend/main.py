@@ -60,7 +60,7 @@ class TodoResponse(BaseModel):
 
 
 class ErrorResponse(BaseModel):
-    error: str
+    detail: str
 
 
 # --- Database Dependency ---
@@ -173,5 +173,5 @@ def delete_todo(
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": str(e)}
+            detail=str(e)
         )
