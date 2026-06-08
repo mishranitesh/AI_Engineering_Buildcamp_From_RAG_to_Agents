@@ -31,11 +31,12 @@ if df.empty:
 df["time"] = pd.to_datetime(df["time"])
 
 # ── Metrics ───────────────────────────────────────────────────────────────────
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3, col4, col5 = st.columns(5)
 col1.metric("Total Events", len(df))
 col2.metric("Errors", len(df[df["level"] == "ERROR"]))
 col3.metric("Workflows Run", df["message"].str.contains("Workflow started|PM phase started").sum())
 col4.metric("PRs Created", df["message"].str.contains("Phase 1 done").sum())
+col5.metric("👍 Feedback", df["message"].str.contains("USER_FEEDBACK").sum())
 
 st.divider()
 

@@ -112,3 +112,13 @@ Hit http://localhost:8000/debug/jira-issue-types — it will return the exact na
 
 {"issue_types": ["Story", "Task", "Bug", "Epic", "Subtask"]}
 """
+
+class FeedbackRequest(BaseModel):
+    project_name: str
+    rating: str   # "positive" or "negative"
+
+@app.post("/feedback")
+def submit_feedback(req: FeedbackRequest):
+    from app.monitoring.logger import logger
+    logger.info(f"USER_FEEDBACK | project={req.project_name} | rating={req.rating}")
+    return {"status": "recorded"}

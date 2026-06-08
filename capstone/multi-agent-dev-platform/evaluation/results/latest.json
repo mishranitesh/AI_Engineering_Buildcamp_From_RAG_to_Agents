@@ -11,9 +11,9 @@
       },
       {
         "agent": "Developer",
-        "passed": 3,
+        "passed": 4,
         "total": 4,
-        "verdict": "1. YES\n2. YES\n3. YES\n4. NO"
+        "verdict": "1. YES  \n2. YES  \n3. YES  \n4. YES"
       },
       {
         "agent": "Review",
@@ -35,9 +35,9 @@
       },
       {
         "agent": "Developer",
-        "passed": 2,
+        "passed": 3,
         "total": 4,
-        "verdict": "1. NO  \n2. YES  \n3. YES  \n4. NO"
+        "verdict": "1. YES  \n2. YES  \n3. YES  \n4. NO"
       },
       {
         "agent": "Review",
@@ -55,13 +55,37 @@
         "agent": "PM",
         "passed": 3,
         "total": 3,
-        "verdict": "YES  \nYES  \nYES"
+        "verdict": "1. YES  \n2. YES  \n3. YES"
       },
       {
         "agent": "Developer",
         "passed": 3,
         "total": 4,
         "verdict": "1. YES  \n2. YES  \n3. YES  \n4. NO"
+      },
+      {
+        "agent": "Review",
+        "passed": 3,
+        "total": 3,
+        "verdict": "1. YES  \n2. YES  \n3. YES"
+      }
+    ]
+  },
+  {
+    "id": "bookmark-api",
+    "requirement": "Build a Bookmark Manager API with endpoints to add, list, and delete bookmarks. Each bookmark has a title and URL. Use in-memory storage.",
+    "agents": [
+      {
+        "agent": "PM",
+        "passed": 3,
+        "total": 3,
+        "verdict": "1. YES  \n2. YES  \n3. YES"
+      },
+      {
+        "agent": "Developer",
+        "passed": 3,
+        "total": 4,
+        "verdict": "1. YES\n2. YES\n3. YES\n4. NO"
       },
       {
         "agent": "Review",

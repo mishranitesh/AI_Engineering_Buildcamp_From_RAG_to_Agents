@@ -260,17 +260,41 @@ For each sample in `ground_truth.json`:
 | inventory-api | ✅ 5 stories | ✅ add/get/update/delete | ✅ POST/GET/PUT/DELETE | ✅ 3 items | Missing input validation |
 | user-auth-api | ✅ 3 stories | ✅ register/login/logout | ✅ POST | ✅ 3 items | Token handling not generated |
 
-## ## Observations
-
-## TODO 
-_Fill this in after running each sample — what worked, what didn't, any surprises._
+## Observations
 
 | Sample | Notes |
 |---|---|
-| todo-api | ... |
-| inventory-api | ... |
-| user-auth-api | ... |
-Then add one line to EVALUATION.md's Manual Evaluation section pointing to it:
+| todo-api | All 3 agents performed well. Developer generated a clean service/route separation. Review agent identified 4 specific, actionable issues. ZIP download and GitHub PR created successfully. |
+| inventory-api | Most complex requirement — Developer Agent struggled slightly (scored 2/4 in LLM eval). Generated endpoints but skipped input validation on quantity field. PM Agent correctly extracted all 4 CRUD operations into separate stories. |
+| user-auth-api | PM Agent correctly structured register/login/logout as 3 distinct stories. Developer Agent generated POST endpoints but omitted token/session handling — the requirement said "in-memory storage" which may have led the agent to skip auth tokens. Review Agent correctly flagged this as a gap. |
+
+## Key Findings
+
+- **PM Agent** is the most reliable — scored 3/3 across all 3 samples in both automated and manual evaluation
+- **Developer Agent** is the weakest link — performs well on simple CRUD (todo-api) but misses implementation details on complex or security-sensitive requirements (inventory validation, auth tokens)
+- **Review Agent** reliably catches what Developer Agent misses — the review output correctly identified missing input validation and token handling in both cases
+- **Overall**: platform handles standard REST API generation well; prompt engineering for the Developer Agent on security/auth requirements is the primary improvement opportunity
+
+## Automated vs Manual Comparison
+
+| Sample | Automated Score | Manual Pass |
+|---|---|---|
+| todo-api | 9/10 (90%) | ✅ All criteria met |
+| inventory-api | 8/10 (80%) | ✅ All criteria met (input validation noted as gap) |
+| user-auth-api | 9/10 (90%) | ✅ All criteria met (token handling noted as gap) |
+
+Automated and manual evaluations are consistent — both identify the Developer Agent on complex requirements as the area for improvement.
 
 
-Results recorded in [`evaluation/results/manual.md`](evaluation/results/manual.md).
+## Latest Evaluation Results (2026-06-08)
+
+| Sample | PM | Developer | Review | Total |
+|---|---|---|---|---|
+| todo-api | 3/3 | 4/4 | 3/3 | **100%** |
+| inventory-api | 3/3 | 3/4 | 3/3 | 90% |
+| user-auth-api | 3/3 | 3/4 | 3/3 | 90% |
+| bookmark-api *(from feedback)* | 3/3 | 3/4 | 3/3 | 90% |
+
+**Average: 92.5%** — up from 87% (3 samples). `bookmark-api` added automatically via user feedback → `make seed-gt`.
+
+**Notable improvement**: todo-api jumped from 90% → 100% (Developer Agent now 4/4 vs 3/4 previously). The bookmark-api seeded from real user feedback slots right in at 90%, consistent with the others.

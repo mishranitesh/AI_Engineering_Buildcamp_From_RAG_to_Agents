@@ -41,6 +41,9 @@ evaluate:
 tune:
 	.venv/bin/python -m evaluation.tune_parameters
 
+seed-gt:
+	.venv/bin/python -m evaluation.seed_from_feedback $(if $(PROJECT),--project $(PROJECT),)
+
 # ── Clean ─────────────────────────────────────────────────────────────────────
 
 clean:
@@ -53,14 +56,16 @@ clean:
 
 help:
 	@echo "Available commands:"
-	@echo "  make install     - Install uv and dependencies"
-	@echo "  make seed        - Seed the knowledge base"
-	@echo "  make api         - Start FastAPI server (port 8000)"
-	@echo "  make ui          - Start main Streamlit UI (port 8501)"
-	@echo "  make monitor     - Start monitoring dashboard (port 8502)"
-	@echo "  make test        - Run all tests (unit + judge)"
-	@echo "  make test-unit   - Run unit tests only"
-	@echo "  make test-judge  - Run LLM judge tests only"
-	@echo "  make evaluate    - Run ground truth evaluation"
-	@echo "  make tune        - Run parameter tuning"
-	@echo "  make clean       - Remove logs, generated projects, cache"
+	@echo "  make install     					 - Install uv and dependencies"
+	@echo "  make seed        					 - Seed the knowledge base"
+	@echo "  make api         					 - Start FastAPI server (port 8000)"
+	@echo "  make ui          					 - Start main Streamlit UI (port 8501)"
+	@echo "  make monitor     					 - Start monitoring dashboard (port 8502)"
+	@echo "  make test        					 - Run all tests (unit + judge)"
+	@echo "  make test-unit   					 - Run unit tests only"
+	@echo "  make test-judge  					 - Run LLM judge tests only"
+	@echo "  make evaluate    					 - Run ground truth evaluation"
+	@echo "  make tune        					 - Run parameter tuning"
+	@echo "  make clean       					 - Remove logs, generated projects, cache"
+	@echo "  make seed-gt 	  					 - Seeds all positively-rated projects from log"
+	@echo "  make seed-gt PROJECT={project_name} - Seeds one specific project"

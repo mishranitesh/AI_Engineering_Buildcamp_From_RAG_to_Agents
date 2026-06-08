@@ -111,6 +111,29 @@ if result:
     with open(result["zip_file"], "rb") as f:
         st.download_button("Download ZIP", f, "generated-project.zip", "application/zip")
 
+    # ── User Feedback ──────────────────────────────────────────────────────────
+    st.divider()
+    if "feedback_given" not in st.session_state:
+        st.markdown("**How was the generated output?**")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("👍 Good output"):
+                requests.post(f"{API}/feedback", json={
+                    "project_name": result["project_name"], "rating": "positive"
+                })
+                st.session_state["feedback_given"] = "positive"
+                st.rerun()
+        with col2:
+            if st.button("👎 Needs improvement"):
+                requests.post(f"{API}/feedback", json={
+                    "project_name": result["project_name"], "rating": "negative"
+                })
+                st.session_state["feedback_given"] = "negative"
+                st.rerun()
+    else:
+        msg = "Thanks for the feedback!" if st.session_state["feedback_given"] == "positive" else "Thanks — noted for improvement."
+        st.info(msg)
+
     # ── PR Lifecycle Panel ────────────────────────────────────────────────────
     if result.get("pr_url"):
         st.divider()
