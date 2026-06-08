@@ -41,10 +41,6 @@ uv.lock
 # claude
 capstone/CLAUDE.md
 
-# Add to capstone/.gitignore or repo root .gitignore:
-capstone/Phase*.md
-capstone/CI-CD.md
-capstone/Evaluation.md
-capstone/Monitoring.md
-capstone/Testing.md
-capstone/Tools.md
+# Runtime data
+knowledge_db/
+runs/

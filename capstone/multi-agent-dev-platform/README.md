@@ -98,7 +98,7 @@ cp .env.example .env
 ```bash
 cp .env.example .env   # fill in your API keys first
 make install   # create venv and install dependencies
-make seed      # seed the knowledge base (run once)
+make seed      # seed the knowledge base (run once) - required on first run
 make api       # terminal 1 — start FastAPI server (port 8000)
 make ui        # terminal 2 — start main UI (port 8501)
 make monitor   # terminal 3 — start monitoring dashboard (port 8502)
