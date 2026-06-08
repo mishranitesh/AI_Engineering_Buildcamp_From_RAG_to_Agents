@@ -44,3 +44,6 @@ capstone/CLAUDE.md
 # Runtime data
 knowledge_db/
 runs/
+
+# Docker
+docker-compose.override.yml

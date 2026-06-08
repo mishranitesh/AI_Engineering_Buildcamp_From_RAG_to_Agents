@@ -2,8 +2,9 @@
 
 import streamlit as st
 import requests
+import os
 
-API = "http://localhost:8000"
+API = os.getenv("API_URL", "http://localhost:8000")
 
 st.title("Multi-Agent Software Builder")
 

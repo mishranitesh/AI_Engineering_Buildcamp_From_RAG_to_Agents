@@ -82,6 +82,7 @@ This shows:
 ## Prerequisites
 
 - Python 3.11+
+- Docker + Docker Compose (for containerized setup)
 - OpenAI API key
 - GitHub personal access token (repo scope)
 - JIRA account (optional)
@@ -95,6 +96,26 @@ cp .env.example .env
 ```
 
 ## Quick Start
+
+### Option A — Docker (recommended)
+```bash
+cp .env.example .env        # fill in your API keys
+docker-compose up --build   # builds image, seeds KB on first run, starts all services
+```
+
+- Main UI: http://localhost:8501
+- Monitoring: http://localhost:8502
+- API: http://localhost:8000
+
+Knowledge base is seeded automatically on first run. Data persists in Docker volumes across restarts.
+
+```bash
+docker-compose down         # stop all services
+docker-compose logs -f      # stream logs from all services
+```
+
+### Option B — Local (manual)
+
 ```bash
 cp .env.example .env   # fill in your API keys first
 make install   # create venv and install dependencies
@@ -190,6 +211,11 @@ multi-agent-dev-platform/
 ├── knowledge_db/                      # ChromaDB vector store (auto-created)
 ├── generated_projects/                # Output from each workflow run
 ├── seed_knowledge_base.py             # One-time KB seeding script
+├── Dockerfile                         # Single image for all services
+├── docker-compose.yml                 # Starts API + UI + monitoring
+├── entrypoint.sh                      # Auto-seeds KB on first Docker run
+├── seed_knowledge_base.py             # One-time KB seeding script
+├── .env.example                       # Credentials template (copy to .env)
 ├── Makefile                           # run `make help` for all commands
 └── .env                               # Secrets (not committed)
 ```
