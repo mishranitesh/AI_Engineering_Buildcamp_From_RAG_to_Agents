@@ -58,13 +58,13 @@ errors = df[df["level"] == "ERROR"]
 if errors.empty:
     st.success("No errors recorded")
 else:
-    st.dataframe(errors[["time", "message"]], use_container_width=True)
+    st.dataframe(errors[["time", "message"]], width='stretch')
 
 st.divider()
 
 # ── Recent Events ─────────────────────────────────────────────────────────────
 st.subheader("Recent Events")
-st.dataframe(df.tail(50)[["time", "level", "message"]].iloc[::-1], use_container_width=True)
+st.dataframe(df.tail(50)[["time", "level", "message"]].iloc[::-1], width='stretch')
 
 if st.button("Refresh"):
     st.rerun()

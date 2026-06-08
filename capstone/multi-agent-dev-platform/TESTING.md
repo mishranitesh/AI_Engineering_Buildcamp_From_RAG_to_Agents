@@ -113,3 +113,51 @@ Unit tests run automatically on every push via GitHub Actions (`.github/workflow
 `test_knowledge_base.py` and `test_tools_mocked.py` are excluded from CI — the KB tests
 require the seeded `knowledge_db/` to exist locally, and mocked tool tests need real
 credentials at setup time. Run these locally after `make seed`.
+
+## End-to-End Test Checklist
+
+Run this after any significant change to verify the full pipeline works.
+
+**Start all services:**
+```bash
+make api      # terminal 1 — FastAPI (port 8000)
+make ui       # terminal 2 — Streamlit UI (port 8501)
+make monitor  # terminal 3 — Monitoring dashboard (port 8502)
+```
+
+Open http://localhost:8501 and run through:
+
+Phase 1 — PM Agent + JIRA
+
+- Enter a project name and requirement
+- Check "Create JIRA Epic & Stories" → click Run PM Agent
+- Verify JIRA epic and story links appear
+
+Phase 2 — Code Generation
+
+- Uncheck "Create JIRA Epic & Stories"
+- Check "Create Draft PR on GitHub"
+- Click Stories confirmed — Generate Code
+- Verify code generates, ZIP download appears, Draft PR link shows
+
+Phase 3 — PR Lifecycle
+
+- Uncheck "Create Draft PR on GitHub"
+- Click Mark Ready for Review → phase indicator advances
+- Select review comments → click Fix PR → verify AutoFix commit on GitHub
+- Click Merge PR → verify merged status
+
+Monitoring — open http://localhost:8502
+
+- Agent elapsed times bar chart shows data
+- Recent events log shows the run
+
+Resume flow (session persistence)
+
+- Restart the API server mid-flow (Ctrl+C → make api)
+- Refresh browser → "Resume Session" appears in sidebar with project name
+- Click Resume → UI picks up at the correct phase
+
+Last verified: 2026-06-08 ✅
+
+
