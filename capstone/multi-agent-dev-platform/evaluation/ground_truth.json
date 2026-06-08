@@ -1,0 +1,35 @@
+[
+  {
+    "id": "todo-api",
+    "requirement": "Build a simple Todo API with create, list, and delete endpoints. Use in-memory storage.",
+    "expected": {
+      "min_user_stories": 3,
+      "required_story_keywords": ["create", "list", "delete"],
+      "required_files": ["main.py"],
+      "required_endpoints": ["POST", "GET", "DELETE"],
+      "review_min_items": 3
+    }
+  },
+  {
+    "id": "inventory-api",
+    "requirement": "Build an Inventory Management API. Allow add item, get all items, update quantity, delete item. Use in-memory storage.",
+    "expected": {
+      "min_user_stories": 4,
+      "required_story_keywords": ["add", "get", "update", "delete"],
+      "required_files": ["main.py"],
+      "required_endpoints": ["POST", "GET", "PUT", "DELETE"],
+      "review_min_items": 3
+    }
+  },
+  {
+    "id": "user-auth-api",
+    "requirement": "Build a User Authentication API with register, login, and logout endpoints. Use in-memory storage.",
+    "expected": {
+      "min_user_stories": 3,
+      "required_story_keywords": ["register", "login", "logout"],
+      "required_files": ["main.py"],
+      "required_endpoints": ["POST"],
+      "review_min_items": 3
+    }
+  }
+]

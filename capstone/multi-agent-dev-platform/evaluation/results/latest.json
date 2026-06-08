@@ -1,0 +1,74 @@
+[
+  {
+    "id": "todo-api",
+    "requirement": "Build a simple Todo API with create, list, and delete endpoints. Use in-memory storage.",
+    "agents": [
+      {
+        "agent": "PM",
+        "passed": 3,
+        "total": 3,
+        "verdict": "YES  \nYES  \nYES"
+      },
+      {
+        "agent": "Developer",
+        "passed": 3,
+        "total": 4,
+        "verdict": "1. YES\n2. YES\n3. YES\n4. NO"
+      },
+      {
+        "agent": "Review",
+        "passed": 3,
+        "total": 3,
+        "verdict": "1. YES  \n2. YES  \n3. YES"
+      }
+    ]
+  },
+  {
+    "id": "inventory-api",
+    "requirement": "Build an Inventory Management API. Allow add item, get all items, update quantity, delete item. Use in-memory storage.",
+    "agents": [
+      {
+        "agent": "PM",
+        "passed": 3,
+        "total": 3,
+        "verdict": "1. YES  \n2. YES  \n3. YES"
+      },
+      {
+        "agent": "Developer",
+        "passed": 2,
+        "total": 4,
+        "verdict": "1. NO  \n2. YES  \n3. YES  \n4. NO"
+      },
+      {
+        "agent": "Review",
+        "passed": 3,
+        "total": 3,
+        "verdict": "1. YES  \n2. YES  \n3. YES"
+      }
+    ]
+  },
+  {
+    "id": "user-auth-api",
+    "requirement": "Build a User Authentication API with register, login, and logout endpoints. Use in-memory storage.",
+    "agents": [
+      {
+        "agent": "PM",
+        "passed": 3,
+        "total": 3,
+        "verdict": "YES  \nYES  \nYES"
+      },
+      {
+        "agent": "Developer",
+        "passed": 3,
+        "total": 4,
+        "verdict": "1. YES  \n2. YES  \n3. YES  \n4. NO"
+      },
+      {
+        "agent": "Review",
+        "passed": 3,
+        "total": 3,
+        "verdict": "1. YES  \n2. YES  \n3. YES"
+      }
+    ]
+  }
+]

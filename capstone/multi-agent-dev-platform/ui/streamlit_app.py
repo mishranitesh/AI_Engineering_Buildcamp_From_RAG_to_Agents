@@ -7,17 +7,66 @@ API = "http://localhost:8000"
 
 st.title("Multi-Agent Software Builder")
 
-req = st.text_area("Enter Requirement")
+col1, col2 = st.columns([1, 2])
+with col1:
+    project_name_input = st.text_input("Project Name", placeholder="e.g. todo-api")
+with col2:
+    req = st.text_area("Enter Requirement")
+
+# At the top of streamlit_app.py, right after imports:
+
+RESUME_LABELS = {
+    ("pm_complete", "none"):             "PM done, Jira created — waiting for code generation",
+    ("completed",   "draft"):            "Code generated — Draft PR open",
+    ("completed",   "ready_for_review"): "PR marked ready for review",
+    ("completed",   "fixing"):           "AutoFix applied — ready to merge or fix more",
+}
 
 with st.sidebar:
     st.header("Options")
     jira_enabled = st.checkbox("Create JIRA Epic & Stories")
     github_enabled = st.checkbox("Create Draft PR on GitHub")
 
+    st.divider()
+    st.subheader("Resume Session")
+    sessions_resp = requests.get(f"{API}/sessions")
+    sessions = sessions_resp.json() if sessions_resp.status_code == 200 else []
+
+    if sessions:
+        names = [s["project_name"] for s in sessions]
+        selected = st.selectbox("Interrupted sessions", names)
+        session = next(s for s in sessions if s["project_name"] == selected)
+        label = RESUME_LABELS.get(
+            (session["final_status"], session["pr_phase"]), "Interrupted"
+        )
+        st.caption(f"Stage: {label}")
+        if session.get("jira_epic_key"):
+            st.caption(f"Jira: {session['jira_epic_key']}")
+        if session.get("pr_url"):
+            st.caption(f"PR: {session['pr_url']}")
+
+        if st.button("▶️ Resume this session"):
+            full = requests.get(f"{API}/session/{selected}").json()
+            if full["final_status"] == "pm_complete":
+                st.session_state["pm_result"] = full
+            else:
+                st.session_state["pm_result"] = full
+                st.session_state["result"] = full
+            st.rerun()
+    else:
+        st.caption("No interrupted sessions")
+
 # Stage 1
 if st.button("Run PM Agent"):
+    if not project_name_input.strip():
+        st.error("Please enter a project name")
+        st.stop()
     with st.spinner("Running PM Agent..."):
-        r = requests.post(f"{API}/run-pm", json={"requirement": req, "jira_enabled": jira_enabled})
+        r = requests.post(f"{API}/run-pm", json={
+            "requirement": req,
+            "project_name": project_name_input.strip(),
+            "jira_enabled": jira_enabled
+        })
         if r.status_code == 200:
             st.session_state["pm_result"] = r.json()
             st.session_state.pop("result", None) # clear any previous codegen result

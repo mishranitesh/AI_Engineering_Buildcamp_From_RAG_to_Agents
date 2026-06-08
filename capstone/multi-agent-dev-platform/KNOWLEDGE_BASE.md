@@ -18,6 +18,7 @@ python seed_knowledge_base.py
 
 ## What's in the Knowledge Base
 
+| Pattern ID | Type | Description |
 |---|---|---|
 | service-layer | best_practice | Keep business logic in service layer, not route handlers |
 | session-management | best_practice | Always release DB sessions/connections in finally blocks |

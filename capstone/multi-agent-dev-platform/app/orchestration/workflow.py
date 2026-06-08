@@ -15,13 +15,17 @@ from app.generators.artifact_writer import (
 )
 from app.generators.zip_generator import create_zip
 from app.monitoring.logger import logger
-import time
-
+from app.orchestration.session_store import checkpoint, clear_checkpoint
 from app.tools.github_tool import GitHubTool
 from app.agents.autofix_agent.agent import AutoFixAgent
+
 import re
+import time
 import datetime
 
+def _slugify(name: str) -> str:
+        """Convert 'My Todo API' → 'my-todo-api' for safe use in paths and git branches."""
+        return re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
 
 class WorkflowOrchestrator:
     def __init__(self):
@@ -45,6 +49,7 @@ class WorkflowOrchestrator:
             return {}
         return {fname: code.strip() for fname, code in matches}
     
+    @checkpoint
     def phase_draft_pr(self, state: WorkflowState) -> WorkflowState:
         """Phase 1: Create branch, commit code, open as Draft PR."""
         gh = GitHubTool()
@@ -69,6 +74,7 @@ class WorkflowOrchestrator:
         logger.info(f"Phase 1 done | draft PR={pr_url}")
         return state
 
+    @checkpoint
     def phase_ready_for_review(self, state: WorkflowState) -> WorkflowState:
         """Phase 2: Mark PR ready, post Review Agent comments."""
         gh = GitHubTool()
@@ -85,6 +91,7 @@ class WorkflowOrchestrator:
         logger.info(f"Phase 2 done | PR marked ready | pr={state.pr_number}")
         return state
 
+    @checkpoint
     def phase_fix_pr(self, state: WorkflowState) -> WorkflowState:
         """Phase 3: AutoFix based on accepted review comments, commit fixes."""
         gh = GitHubTool()
@@ -112,11 +119,13 @@ class WorkflowOrchestrator:
 
     def phase_merge_pr(self, state: WorkflowState) -> WorkflowState:
         """Phase 4: Merge PR to main."""
+        # NO @checkpoint here — run complete, clear it instead
         gh = GitHubTool()
         merged = gh.merge_pull_request(state.pr_number)
         if merged:
             state.pr_phase = "merged"
             logger.info(f"Phase 4 done | PR merged | pr={state.pr_number}")
+        clear_checkpoint(state.project_name)
         return state
 
     def _extract_user_stories(self, pm_output: str) -> list[str]:
@@ -194,9 +203,13 @@ class WorkflowOrchestrator:
         state.jira_enabled = True
         return state
 
-    def run_pm_phase(self, requirement: str, jira_enabled: bool = False) -> WorkflowState:
+    @checkpoint
+    def run_pm_phase(self, requirement: str, project_name: str, jira_enabled: bool = False) -> WorkflowState:
         """Stage 1: PM Agent + optional JIRA setup. Returns state, waits for confirmation."""
-        state = WorkflowState(requirement=requirement)
+        state = WorkflowState(
+            requirement=requirement,
+            project_name=_slugify(project_name), # <-- replaces the hardcoded default
+        )
         logger.info(f"PM phase started | requirement='{requirement[:80]}...'")
 
         t = time.time()
@@ -213,6 +226,7 @@ class WorkflowOrchestrator:
         state.final_status = "pm_complete"
         return state
     
+    @checkpoint
     def run_codegen_phase(self, state: WorkflowState, github_enabled: bool = False) -> WorkflowState:
         """Stage 2: Fetch confirmed JIRA stories → generate code → GitHub."""
 
