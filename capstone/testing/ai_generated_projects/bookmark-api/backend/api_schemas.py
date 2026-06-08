@@ -19,7 +19,7 @@ class BookmarkCreateRequest(BaseModel):
 
 
 class BookmarkResponse(BaseModel):
-    id: str
+    id: UUID
     title: str
     url: str
     created_at: datetime
