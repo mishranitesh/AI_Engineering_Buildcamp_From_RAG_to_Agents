@@ -1,0 +1,25 @@
+question,category,type
+How do I make spaghetti carbonara?,specific-recipe,direct
+What can I cook with chicken and coconut milk?,ingredient-search,ingredient-based
+I want something easy and healthy for dinner,preference,vague
+How do I make sushi?,missing-recipe,not-in-collection
+What temperature should I set my oven to for the lava cake?,recipe-detail,specific
+What Italian dishes do you have?,collection-query,browse
+I want something with pasta,preference,vague
+Can I use bacon instead of guanciale in carbonara?,substitution,not-in-data
+Can I substitute almond milk in the pancakes?,substitution,not-in-data
+Is the Caesar salad vegetarian?,dietary-check,tricky
+Is the falafel wrap vegan?,dietary-check,specific
+What's the calorie count for the margherita pizza?,missing-info,not-in-data
+How do I make ramen?,missing-recipe,not-in-collection
+What's the best restaurant in town?,out-of-scope,irrelevant
+How do I fix my dishwasher?,out-of-scope,irrelevant
+Can I make the falafel with canned chickpeas?,edge-case,specific
+How many servings does the chocolate lava cake make?,recipe-detail,specific
+What can I make if I'm vegan?,preference,dietary-filter
+What can I cook without any meat?,preference,dietary-filter
+How long can I store leftover chicken tikka masala in the fridge?,missing-info,not-in-data
+What's the hardest recipe in your collection?,collection-query,meta
+Can I make mushroom risotto without wine?,substitution,not-in-data
+Do you have any dessert recipes?,collection-query,browse
+What spices are needed for chicken tikka masala?,recipe-detail,specific
